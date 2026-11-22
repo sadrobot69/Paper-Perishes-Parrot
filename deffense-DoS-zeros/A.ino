@@ -264,13 +264,7 @@ void receiveFrames_zeroDefense(uint32_t now) {
     if (ext || rtr) { ++counts.bad; continue; }
     if (id != Lab::SENSOR_ID) { ++counts.unrelated; continue; }
     if (len != Lab::DLC) { ++counts.bad; event(F("BAD_DLC")); continue; }
-    if (Lab::allZero(data)) {
-      ++counts.zeros;
-      event(F("ZERO_DATA"));
-      motorState = Lab::STOP;
-      publishMotor();
-      continue;
-    }
+    if (Lab::allZero(data)) return;
     receiveSensor_zeroDefense(data, now);
   }
 }

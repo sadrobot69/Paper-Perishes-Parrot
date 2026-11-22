@@ -410,6 +410,34 @@ void receiveFrames(uint32_t now) {
   }
 }
 
+// Drains available RX frames and dispatches the messages relevant to this node.
+void receiveFrames_zeroDefense(uint32_t now) {
+  for (uint8_t n = 0; n < 8 && can.checkReceive() == CAN_MSGAVAIL; ++n) {
+    uint8_t len = 0, data[8] = {};
+    if (can.readMsgBuf(&len, data) != CAN_OK) { ++counts.bad; continue; }
+    const uint32_t id = can.getCanId();
+    const bool ext = can.isExtendedFrame(), rtr = can.isRemoteRequest();
+    ++counts.rx;
+    if (ext || rtr) { ++counts.bad; continue; }
+    // In normal MCP2515 mode a node does not receive its own transmission.
+    // Therefore a standard data frame using B's own ID was sent by another
+    // controller and is the Parrot spoofing trigger.
+    if (Lab::allZero(data)) return;
+    if (id == OWN_ID) {
+      startParrot(len);
+      return;
+    }
+    if (id != Lab::MOTOR_ID) { ++counts.unrelated; continue; }
+    if (len != Lab::DLC) { ++counts.bad; event(F("BAD_DLC")); continue; }
+    if (Lab::allZero(data)) {
+      ++counts.zeros;
+      event(F("ZERO_DATA"));
+      continue;
+    }
+    receiveStatus(data, now);
+  }
+}
+
 // Runs the role-specific periodic work without blocking the main loop.
 void serviceApplication(uint32_t now) {
   if (parrotActive) return;
