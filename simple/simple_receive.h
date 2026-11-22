@@ -1,13 +1,15 @@
-// receiver: polls for frames, logs id + data bytes + TEC/REC
+// Minimal receiver example: polls CAN and prints ID, payload, TEC, and REC.
 #include <SPI.h>
 #define CAN_2515
 #include "mcp2515_can.h"
 
+// Shield wiring and application threshold.
 const int SPI_CS_PIN = 9;
 mcp2515_can CAN(SPI_CS_PIN);
 
 const uint8_t BREAK_DISTANCE = 100;
 
+// Last frame and reporting state.
 uint32_t id;
 uint8_t  len;
 uint8_t  distance = 0;
@@ -15,8 +17,10 @@ uint8_t  distance = 0;
 unsigned long lastReport = 0;
 const unsigned long IDLE_TIME = 5000;
 
+// Direct register reads use the MCP2515 SPI mode and maximum clock.
 SPISettings CAN_SPI(10000000, MSBFIRST, SPI_MODE0);
 
+// Reads one MCP2515 register through the SPI READ command.
 uint8_t regRead(uint8_t addr) {
     SPI.beginTransaction(CAN_SPI);
     digitalWrite(SPI_CS_PIN, LOW);
@@ -28,6 +32,7 @@ uint8_t regRead(uint8_t addr) {
     return value;
 }
 
+// Initializes Serial and retries until the CAN controller is available.
 void setup() {
     Serial.begin(115200);
     pinMode(SPI_CS_PIN, OUTPUT);
@@ -39,6 +44,7 @@ void setup() {
     Serial.println("CAN init ok (receiver)");
 }
 
+// Interprets the one-byte distance using the example threshold.
 void printDecision(uint8_t distance){
     if (distance < BREAK_DISTANCE) {
         Serial.println(" [BREAK]");
@@ -47,6 +53,7 @@ void printDecision(uint8_t distance){
     Serial.println(" [CONTINUE]");
 }
 
+// Reads and prints one received CAN frame and its controller diagnostics.
 void printMSG(unsigned long *lastReport){
     uint8_t rr = 0;
     char buf[96];
@@ -61,6 +68,8 @@ void printMSG(unsigned long *lastReport){
     printDecision(distance);
     *lastReport = millis();
 }
+
+// Periodically reports controller state while no CAN frame is received.
 void printIdle(unsigned long *lastReport, unsigned long now, uint8_t rv){
     *lastReport = now;
     Serial.print("idle: checkReceive="); Serial.print(rv);
@@ -68,6 +77,7 @@ void printIdle(unsigned long *lastReport, unsigned long now, uint8_t rv){
     Serial.print(" REC="); Serial.println(regRead(0x1D));
 }
 
+// Polls CAN continuously and emits an idle report every five seconds.
 void loop() {
     unsigned long now = 0;
     uint8_t rv = CAN.checkReceive();
