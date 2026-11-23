@@ -225,6 +225,13 @@ void receiveFrames(uint32_t now) {
     if (len != Lab::DLC) { ++counts.bad; event(F("BAD_DLC")); continue; }
     if (Lab::allZero(data)) {
       ++counts.zeros;
+      // Structured ground truth: an all-zero 0x120 frame with B's DLC and
+      // a valid-protocol shape means EITHER B's Parrot pulse OR C's spoof.
+      // A cannot tell them apart -- that ambiguity IS the attack's impact.
+      Serial.print(millis()); Serial.print(F(" A SPOOF_AMBIGUOUS "));
+      Serial.print(F("source=0x120_payload_zero dlc="));
+      Serial.print(len); Serial.print(F(" zero_count="));
+      Serial.println(counts.zeros);
       event(F("ZERO_DATA"));
       motorState = Lab::STOP;
       publishMotor();

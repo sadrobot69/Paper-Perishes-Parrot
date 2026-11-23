@@ -10,7 +10,7 @@
 
 // Select exactly one firmware before Verify/Upload in Arduino IDE.
 #ifndef ACTIVE_NODE
-#define ACTIVE_NODE NODE_A
+#define ACTIVE_NODE NODE_C
 #endif
 
 #if ACTIVE_NODE < NODE_A || ACTIVE_NODE > NODE_C

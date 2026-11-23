@@ -2,6 +2,8 @@
 #define SEND_H
 #include "common.h"
 
+const uint8_t DELAY = 
+
 const uint8_t DISTANCES[] = { 50, 150, 100, 200, 250 };
 const uint8_t N = sizeof(DISTANCES) / sizeof(DISTANCES[0]);
 

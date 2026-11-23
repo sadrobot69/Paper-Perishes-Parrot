@@ -1,12 +1,7 @@
-// receiver: polls for frames, logs id + data bytes + TEC/REC
-#include <SPI.h>
-#define CAN_2515
-#include "mcp2515_can.h"
+#ifndef RECEIVE_H
+#define RECEIVE_H
 
-const int SPI_CS_PIN = 9;
-mcp2515_can CAN(SPI_CS_PIN);
-
-const uint8_t BREAK_DISTANCE = 100;
+#include "common.h"
 
 uint32_t id;
 uint8_t  len;
@@ -15,37 +10,6 @@ uint8_t  distance = 0;
 unsigned long lastReport = 0;
 const unsigned long IDLE_TIME = 5000;
 
-SPISettings CAN_SPI(10000000, MSBFIRST, SPI_MODE0);
-
-uint8_t regRead(uint8_t addr) {
-    SPI.beginTransaction(CAN_SPI);
-    digitalWrite(SPI_CS_PIN, LOW);
-    SPI.transfer(0x03);
-    SPI.transfer(addr);
-    uint8_t value = SPI.transfer(0x00);
-    digitalWrite(SPI_CS_PIN, HIGH);
-    SPI.endTransaction();
-    return value;
-}
-
-void setup() {
-    Serial.begin(115200);
-    pinMode(SPI_CS_PIN, OUTPUT);
-    digitalWrite(SPI_CS_PIN, HIGH);
-    while (CAN_OK != CAN.begin(CAN_500KBPS)) {
-        Serial.println("CAN init fail, retry...");
-        delay(500);
-    }
-    Serial.println("CAN init ok (receiver)");
-}
-
-void printDecision(uint8_t distance){
-    if (distance < BREAK_DISTANCE) {
-        Serial.println(" [BREAK]");
-        return;
-    }
-    Serial.println(" [CONTINUE]");
-}
 
 void printMSG(unsigned long *lastReport){
     uint8_t rr = 0;
@@ -80,3 +44,5 @@ void loop() {
         printIdle(&lastReport, now, rv);
     }
 }
+
+#endif

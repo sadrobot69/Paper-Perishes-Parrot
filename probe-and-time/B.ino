@@ -263,6 +263,7 @@ void serviceParrot(uint32_t now) {
   if (eflg & 0x20) {
     halted = true;
     failParrot(F("PARROT_FAILED defender_bus_off"));
+    event(F(">>> B_BUS_OFF sensor punished itself - press r to reinit <<<"));
     return;
   }
 
@@ -343,6 +344,7 @@ void diagnostics(uint32_t now) {
     return;
   }
   const uint8_t state = flags & 0x3f;
+  const uint8_t prevState = previousErrorState;
   if (state != previousErrorState) {
     previousErrorState = state;
     event(F("CAN_STATE_CHANGED"));
@@ -350,6 +352,8 @@ void diagnostics(uint32_t now) {
     if (flags & 0x20) event(F("CAN_BUS_OFF"));
     else if (flags & 0x18) event(F("CAN_ERROR_PASSIVE"));
     else event(F("CAN_ERROR_ACTIVE"));
+    if (halted && (prevState & 0x20))
+      event(F("B_BACK_ON_BUS auto-recovered - press r to reinit"));
     if (flags & 0x07) event(F("CAN_ERROR_WARNING"));
   }
   if (flags & 0xc0) {
@@ -361,7 +365,8 @@ void diagnostics(uint32_t now) {
     halted = true;
     motorState = Lab::STOP;
     periodicTxActive = false;
-    event(F("BUS_OFF"));
+    counts.parrotFailed++;
+    event(F("B_BUS_OFF defender_lost_the_bus - press r to reinit"));
   }
 }
 
