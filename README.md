@@ -1,12 +1,20 @@
 # Paper-Perishes-Parrot
 
-Experimental project using three Arduino UNO boards and MCP2515 controllers to
-study spoofing on Classical CAN and the Parrot defense proposed by Dagan and
-Wool.
+Completed experimental project using three Arduino UNO boards and MCP2515
+controllers to study spoofing on Classical CAN, reproduce the Parrot defense
+proposed by Dagan and Wool, and evaluate two attacks against its assumptions.
+
+The repository contains the four scenarios used in the final evaluation:
+
+- `attack`: unprotected impersonation of the legitimate sensor.
+- `defense`: Parrot running in B against the conventional spoofing node C.
+- `attack-DoS-zeros`: zero-payload evasion and denial of service.
+- `attack-one-shot-reset`: One-Shot transmission with preventive controller
+  reset.
 
 ## Flat project structure
 
-Every variant except `simple` uses the same flat structure:
+Every scenario uses the same flat structure:
 
 ```text
 <variant>/
@@ -138,7 +146,7 @@ sequenceDiagram
     Note over BUS,C: Successful CAN transmission<br/>no collision and no TEC growth
 ```
 
-### `deffense`: Parrot implemented in B
+### `defense`: Parrot implemented in B
 
 This variant implements Parrot exclusively in B. When B receives a frame with
 its own identifier `0x120`, it treats it as a spoofing attempt and transmits a
@@ -334,80 +342,14 @@ Here the attack changes controller behavior. The firmware's preventive reset is
 not a CAN frame and is invisible on the bus; it is an SPI operation between the
 UNO and C's MCP2515.
 
-### `attack-pulse-surfing`: adaptive second-strike evasion
-
-This variant exploits Parrot's unavoidable second-strike behavior without
-changing the CAN controller. C waits for a legitimate SENSOR frame, transmits
-one valid 10 cm spoof, and then remains silent while B sends its defensive
-Dmessage pulse. C recognizes the zero-filled Dmessages, waits until the pulse
-has been quiet for 60 ms, and only then transmits the next spoof. Consequently,
-each spoof is the first message of a new Parrot cycle: A can process it, B can
-detect it, but there is no later attacker transmission for the active pulse to
-intercept.
-
-The attack uses normal MCP2515 retransmission, valid payloads, and no bus flood.
-The expected evidence is repeated `PARROT_COMPLETE collision=NO` on B, repeated
-`SURF_RELAUNCH` on C, STOP decisions on A, and a C TEC that remains near zero.
-This follows directly from the original paper's finite pulse parameter `ND`,
-which must cover the expected interval between attacker messages, and its stated
-inability to counter the first spoofed message. The same first-message limitation
-is analyzed in [Pesé's thesis](https://rtcl.eecs.umich.edu/rtclweb/assets/dissertations/2022/mpese_thesis_v3.pdf#page=151).
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as A · Motor
-    participant BUS as BUS · CAN
-    participant B as B · Sensor
-    participant C as C · Attacker
-
-    loop Adaptive attack cycle
-        Note over A,C: NORMAL TRAFFIC
-        B->>BUS: Legitimate 0x120 SENSOR
-        BUS-->>A: Real distance sample
-        BUS-->>C: C observes B's publication
-        A->>BUS: 0x220 MOTOR_STATUS
-        BUS-->>B: APP_ACK
-
-        Note over A,C: ATTACK
-        C->>C: Wait at least 8 ms<br/>inside B's 250 ms period
-        C->>BUS: One valid spoof · cm=10
-        BUS-->>A: First spoof in this cycle
-        BUS-->>B: OWN_ID detected
-        A->>A: MOTOR STOP
-        B->>B: PARROT_ENGAGE
-
-        Note over A,C: DEFENSE PULSE
-        loop Finite Parrot pulse
-            B->>BUS: Dmessage · 00×8
-            BUS-->>C: Observe and timestamp
-            BUS-->>A: ZERO_DATA → STOP
-            Note over B,C: C deliberately<br/>transmits nothing
-        end
-
-        B->>B: PARROT_COMPLETE collision=NO
-        Note over B,C: No collision<br/>C's TEC remains near zero
-        C->>C: Wait 60 ms<br/>with no Dmessage
-        Note over B,C: SURF_RELAUNCH<br/>starts the next cycle
-    end
-```
-
-The timing is learned from traffic rather than hard-coded to the estimated
-duration of B's pulse. If the pulse becomes longer, every new Dmessage moves the
-60 ms quiet-window deadline forward.
-
-Send `a` to C at 115200 baud to enable or disable adaptive pulse surfing. Send
-`1` for one isolated valid spoof and `s` for the attack counters.
-
 ## Scenario comparison
 
 | Scenario | C's strategy | B's observation and reaction | C controller outcome | Effect visible at A |
 |---|---|---|---|---|
 | `attack` | Repeated valid `cm=10` spoof | Own ID is observable, but Parrot is absent | Normal TX, TEC remains low | Spoof is accepted; motor enters STOP |
-| `deffense` | Repeated valid `cm=10` spoof | Parrot pulse overlaps the next spoof and creates a snowball | TEC reaches 256; C enters BUS-OFF | First spoof may cause STOP; legitimate B traffic later recovers |
+| `defense` | Repeated valid `cm=10` spoof | Parrot pulse overlaps the next spoof and creates a snowball | TEC reaches 256; C enters BUS-OFF | First spoof may cause STOP; legitimate B traffic later recovers |
 | `attack-DoS-zeros` | Copy the all-zero Dmessage payload | Parrot transmits an identical frame, so no bit differs | No collision-driven TEC rise | Repeated `ZERO_DATA`, STOP and possible RX overflow |
 | `attack-one-shot-reset` | One-Shot attempts plus reset around TEC 32 | Parrot causes isolated errors but no automatic retry snowball | TEC is periodically cleared before BUS-OFF | Spoofs that land outside collisions cause STOP |
-| `attack-pulse-surfing` | One valid spoof between finite Parrot pulses | Every spoof is detected; each pulse finishes with no collision | Normal controller behavior; TEC stays near zero | One accepted `cm=10` spoof per defensive cycle |
 
 ## Classical CAN frame fields
 
